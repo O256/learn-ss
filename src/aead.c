@@ -55,8 +55,8 @@
 #define XCHACHA20POLY1305IETF   4
 #endif
 
-#define CHUNK_SIZE_LEN          2
-#define CHUNK_SIZE_MASK         0x3FFF
+#define CHUNK_SIZE_LEN          2 // 长度缓冲区长度
+#define CHUNK_SIZE_MASK         0x3FFF // 长度掩码
 
 /*
  * Spec: http://shadowsocks.org/en/spec/AEAD-Ciphers.html
@@ -149,15 +149,15 @@ static const int supported_aead_ciphers_tag_size[AEAD_CIPHER_NUM] = {
 };
 
 static int
-aead_cipher_encrypt(cipher_ctx_t *cipher_ctx,
-                    uint8_t *c,
-                    size_t *clen,
-                    uint8_t *m,
-                    size_t mlen,
-                    uint8_t *ad,
-                    size_t adlen,
-                    uint8_t *n,
-                    uint8_t *k)
+aead_cipher_encrypt(cipher_ctx_t *cipher_ctx, // 加密上下文 
+                    uint8_t *c, // 加密后的数据
+                    size_t *clen, // 加密后的数据长度
+                    uint8_t *m, // 明文
+                    size_t mlen, // 明文长度
+                    uint8_t *ad, // 附加数据
+                    size_t adlen, // 附加数据长度
+                    uint8_t *n, // 非重复
+                    uint8_t *k) // 密钥
 {
     int err                      = CRYPTO_OK;
     unsigned long long long_clen = 0;
@@ -488,6 +488,7 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     return CRYPTO_OK;
 }
 
+// 加密块，将数据加密之后，写入到c中
 static int
 aead_chunk_encrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c,
                    uint8_t *n, uint16_t plen)
@@ -499,80 +500,81 @@ aead_chunk_encrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c,
 
     int err;
     size_t clen;
-    uint8_t len_buf[CHUNK_SIZE_LEN];
-    uint16_t t = htons(plen & CHUNK_SIZE_MASK);
-    memcpy(len_buf, &t, CHUNK_SIZE_LEN);
+    uint8_t len_buf[CHUNK_SIZE_LEN]; // 长度缓冲区
+    uint16_t t = htons(plen & CHUNK_SIZE_MASK); // 长度
+    memcpy(len_buf, &t, CHUNK_SIZE_LEN); // 复制长度
 
-    clen = CHUNK_SIZE_LEN + tlen;
+    clen = CHUNK_SIZE_LEN + tlen; // 加密后的长度
     err  = aead_cipher_encrypt(ctx, c, &clen, len_buf, CHUNK_SIZE_LEN,
-                               NULL, 0, n, ctx->skey);
+                               NULL, 0, n, ctx->skey); // 将长度写入到c中
     if (err)
         return CRYPTO_ERROR;
 
-    assert(clen == CHUNK_SIZE_LEN + tlen);
+    assert(clen == CHUNK_SIZE_LEN + tlen); // 加密后的长度
 
-    sodium_increment(n, nlen);
+    sodium_increment(n, nlen); // 非重复
 
-    clen = plen + tlen;
+    clen = plen + tlen; // 加密后的长度
     err  = aead_cipher_encrypt(ctx, c + CHUNK_SIZE_LEN + tlen, &clen, p, plen,
-                               NULL, 0, n, ctx->skey);
+                               NULL, 0, n, ctx->skey); // 将明文写入到c中
     if (err)
         return CRYPTO_ERROR;
 
-    assert(clen == plen + tlen);
+    assert(clen == plen + tlen); // 加密后的长度
 
-    sodium_increment(n, nlen);
+    sodium_increment(n, nlen); // 如何保证非重复？
 
     return CRYPTO_OK;
 }
 
 /* TCP */
+// 编码头部，将数据加密之后，写入到plaintext中
 int
 aead_encrypt(buffer_t *plaintext, cipher_ctx_t *cipher_ctx, size_t capacity)
 {
     if (cipher_ctx == NULL)
         return CRYPTO_ERROR;
 
-    if (plaintext->len == 0) {
+    if (plaintext->len == 0) { // 如果数据长度为0，则直接返回
         return CRYPTO_OK;
     }
 
-    static buffer_t tmp = { 0, 0, 0, NULL };
-    buffer_t *ciphertext;
+    static buffer_t tmp = { 0, 0, 0, NULL }; // 临时缓冲区
+    buffer_t *ciphertext; // 加密后的数据
 
-    cipher_t *cipher = cipher_ctx->cipher;
-    int err          = CRYPTO_ERROR;
-    size_t salt_ofst = 0;
-    size_t salt_len  = cipher->key_len;
-    size_t tag_len   = cipher->tag_len;
+    cipher_t *cipher = cipher_ctx->cipher; // 获得加密算法
+    int err          = CRYPTO_ERROR; // 错误码
+    size_t salt_ofst = 0; // 盐偏移
+    size_t salt_len  = cipher->key_len; // 盐长度
+    size_t tag_len   = cipher->tag_len; // 标签长度
 
-    if (!cipher_ctx->init) {
-        salt_ofst = salt_len;
+    if (!cipher_ctx->init) { // 如果未初始化
+        salt_ofst = salt_len; // 盐偏移
     }
 
-    size_t out_len = salt_ofst + 2 * tag_len + plaintext->len + CHUNK_SIZE_LEN;
-    brealloc(&tmp, out_len, capacity);
-    ciphertext      = &tmp;
-    ciphertext->len = out_len;
+    size_t out_len = salt_ofst + 2 * tag_len + plaintext->len + CHUNK_SIZE_LEN; // 输出长度
+    brealloc(&tmp, out_len, capacity); // 重新分配缓冲区
+    ciphertext      = &tmp; // 加密后的数据
+    ciphertext->len = out_len; // 加密后的数据长度
 
-    if (!cipher_ctx->init) {
-        memcpy(ciphertext->data, cipher_ctx->salt, salt_len);
-        aead_cipher_ctx_set_key(cipher_ctx, 1);
-        cipher_ctx->init = 1;
+    if (!cipher_ctx->init) { // 如果未初始化
+        memcpy(ciphertext->data, cipher_ctx->salt, salt_len); // 复制盐
+        aead_cipher_ctx_set_key(cipher_ctx, 1); // 设置密钥
+        cipher_ctx->init = 1; // 初始化
 
-        ppbloom_add((void *)cipher_ctx->salt, salt_len);
+        ppbloom_add((void *)cipher_ctx->salt, salt_len); // 怎么保证盐不重复？ 
     }
 
-    err = aead_chunk_encrypt(cipher_ctx,
-                             (uint8_t *)plaintext->data,
-                             (uint8_t *)ciphertext->data + salt_ofst,
-                             cipher_ctx->nonce, plaintext->len);
+    err = aead_chunk_encrypt(cipher_ctx, // 加密
+                             (uint8_t *)plaintext->data, // 明文
+                             (uint8_t *)ciphertext->data + salt_ofst, // 加密后的数据
+                             cipher_ctx->nonce, plaintext->len); // 非重复
     if (err)
         return err;
 
-    brealloc(plaintext, ciphertext->len, capacity);
-    memcpy(plaintext->data, ciphertext->data, ciphertext->len);
-    plaintext->len = ciphertext->len;
+    brealloc(plaintext, ciphertext->len, capacity); // 重新分配缓冲区
+    memcpy(plaintext->data, ciphertext->data, ciphertext->len); // 复制加密后的数据
+    plaintext->len = ciphertext->len; // 加密后的数据长度
 
     return 0;
 }
@@ -622,6 +624,7 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
     return CRYPTO_OK;
 }
 
+// 解密
 int
 aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
 {

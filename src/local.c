@@ -780,6 +780,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
     }
 }
 
+// 接收回调函数
 static void
 server_recv_cb(EV_P_ ev_io *w, int revents)
 {

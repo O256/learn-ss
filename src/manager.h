@@ -36,6 +36,7 @@
 
 #include "common.h"
 
+// 管理器上下文结构体
 struct manager_ctx {
     ev_io io;
     int fd;
@@ -65,6 +66,7 @@ struct manager_ctx {
 #endif
 };
 
+// 服务器结构体
 struct server {
     char port[8];
     char password[128];

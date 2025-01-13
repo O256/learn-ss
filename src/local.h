@@ -40,6 +40,7 @@
 
 #include "common.h"
 
+// 监听上下文
 typedef struct listen_ctx {
     ev_io io;
     char *iface;
@@ -50,15 +51,17 @@ typedef struct listen_ctx {
     struct sockaddr **remote_addr;
 } listen_ctx_t;
 
+// 服务器上下文
 typedef struct server_ctx {
     ev_io io;
     int connected;
     struct server *server;
 } server_ctx_t;
 
+// 服务器结构体
 typedef struct server {
-    int fd;
-    int stage;
+    int fd; // 文件描述符
+    int stage; // 阶段
 
     cipher_ctx_t *e_ctx;
     cipher_ctx_t *d_ctx;
@@ -75,6 +78,7 @@ typedef struct server {
     struct cork_dllist_item entries;
 } server_t;
 
+// 远程上下文
 typedef struct remote_ctx {
     ev_io io;
     ev_timer watcher;
@@ -83,9 +87,10 @@ typedef struct remote_ctx {
     struct remote *remote;
 } remote_ctx_t;
 
+// 远程结构体
 typedef struct remote {
-    int fd;
-    int direct;
+    int fd; // 文件描述符
+    int direct; // 直接连接
     int addr_len;
     uint32_t counter;
 #ifdef TCP_FASTOPEN_WINSOCK

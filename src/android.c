@@ -45,6 +45,7 @@
 #include "netutils.h"
 #include "utils.h"
 
+// 保护socket
 int
 protect_socket(int fd)
 {

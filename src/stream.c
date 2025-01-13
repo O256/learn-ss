@@ -151,6 +151,7 @@ static const int supported_stream_ciphers_key_size[STREAM_CIPHER_NUM] = {
     0, 16, 16, 16, 24, 32, 16, 24, 32, 16, 16, 24, 32, 16, 8, 16, 16, 16, 32, 32, 32
 };
 
+// 加密
 static int
 crypto_stream_xor_ic(uint8_t *c, const uint8_t *m, uint64_t mlen,
                      const uint8_t *n, uint64_t ic, const uint8_t *k,
@@ -318,6 +319,7 @@ cipher_ctx_set_nonce(cipher_ctx_t *cipher_ctx, uint8_t *nonce, size_t nonce_len,
 #endif
 }
 
+// 更新加密上下文
 static int
 cipher_ctx_update(cipher_ctx_t *ctx, uint8_t *output, size_t *olen,
                   const uint8_t *input, size_t ilen)
@@ -378,6 +380,7 @@ stream_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
     return CRYPTO_OK;
 }
 
+// 对数据进行加密
 int
 stream_encrypt(buffer_t *plaintext, cipher_ctx_t *cipher_ctx, size_t capacity)
 {

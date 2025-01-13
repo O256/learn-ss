@@ -217,7 +217,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
     remote->buf->len = r;
 
-    int err = crypto->encrypt(remote->buf, server->e_ctx, SOCKET_BUF_SIZE);
+    int err = crypto->encrypt(remote->buf, server->e_ctx, SOCKET_BUF_SIZE); // 加密数据包
 
     if (err) {
         LOGE("invalid password or cipher");
@@ -226,7 +226,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         return;
     }
 
-    int s = send(remote->fd, remote->buf->data, remote->buf->len, 0);
+    int s = send(remote->fd, remote->buf->data, remote->buf->len, 0); // 发送加密后的数据包
 
     if (s == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -251,7 +251,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 }
 
 static void
-server_send_cb(EV_P_ ev_io *w, int revents)
+server_send_cb(EV_P_ ev_io *w, int revents) // 发送回调函数
 {
     server_ctx_t *server_send_ctx = (server_ctx_t *)w;
     server_t *server              = server_send_ctx->server;

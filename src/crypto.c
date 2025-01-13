@@ -52,6 +52,7 @@ balloc(buffer_t *ptr, size_t capacity)
     return capacity;
 }
 
+// 重新分配缓冲区
 int
 brealloc(buffer_t *ptr, size_t len, size_t capacity)
 {

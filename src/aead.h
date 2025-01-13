@@ -33,15 +33,15 @@
 #define AEAD_CIPHER_NUM              4
 #endif
 
-int aead_encrypt_all(buffer_t *, cipher_t *, size_t);
-int aead_decrypt_all(buffer_t *, cipher_t *, size_t);
+int aead_encrypt_all(buffer_t *, cipher_t *, size_t); // 加密所有数据
+int aead_decrypt_all(buffer_t *, cipher_t *, size_t); // 解密所有数据
 
-int aead_encrypt(buffer_t *, cipher_ctx_t *, size_t); 
-int aead_decrypt(buffer_t *, cipher_ctx_t *, size_t);
+int aead_encrypt(buffer_t *, cipher_ctx_t *, size_t); // 加密
+int aead_decrypt(buffer_t *, cipher_ctx_t *, size_t); // 解密
 
-void aead_ctx_init(cipher_t *, cipher_ctx_t *, int);
-void aead_ctx_release(cipher_ctx_t *);
+void aead_ctx_init(cipher_t *, cipher_ctx_t *, int); // 初始化上下文
+void aead_ctx_release(cipher_ctx_t *); // 释放上下文
 
-cipher_t *aead_init(const char *pass, const char *key, const char *method);
+cipher_t *aead_init(const char *pass, const char *key, const char *method); // 初始化加密
 
 #endif // _AEAD_H

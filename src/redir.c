@@ -455,12 +455,14 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     remote->recv_ctx->connected = 1;
 }
 
+// redir是一个客户端，外部发送的数据，nat到redir，然后redir转发到ss服务器，之后ss服务器转发到目标地址
+// 所以redir发送的数据是加密的，内容包括了目标地址和数据
 static void
 remote_send_cb(EV_P_ ev_io *w, int revents)
 {
     remote_ctx_t *remote_send_ctx = (remote_ctx_t *)w;
     remote_t *remote              = remote_send_ctx->remote;
-    server_t *server              = remote->server;
+    server_t *server              = remote->server; // 获得远端的server
 
     ev_timer_stop(EV_A_ & remote_send_ctx->watcher);
 
@@ -481,8 +483,8 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
 
             // send destaddr
             buffer_t ss_addr_to_send;
-            buffer_t *abuf = &ss_addr_to_send;
-            balloc(abuf, SOCKET_BUF_SIZE);
+            buffer_t *abuf = &ss_addr_to_send; // 分配内存
+            balloc(abuf, SOCKET_BUF_SIZE); // 分配内存
 
             if (AF_INET6 == server->destaddr.ss_family) { // IPv6
                 abuf->data[abuf->len++] = 4;          // Type 4 is IPv6 address
@@ -490,25 +492,25 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
                 size_t in6_addr_len = sizeof(struct in6_addr);
                 memcpy(abuf->data + abuf->len,
                        &(((struct sockaddr_in6 *)&(server->destaddr))->sin6_addr),
-                       in6_addr_len);
+                       in6_addr_len); // 复制目标地址
                 abuf->len += in6_addr_len;
                 memcpy(abuf->data + abuf->len,
                        &(((struct sockaddr_in6 *)&(server->destaddr))->sin6_port),
-                       2);
+                       2); // 复制目标端口
             } else {                             // IPv4
                 abuf->data[abuf->len++] = 1; // Type 1 is IPv4 address
 
                 size_t in_addr_len = sizeof(struct in_addr);
                 memcpy(abuf->data + abuf->len,
-                       &((struct sockaddr_in *)&(server->destaddr))->sin_addr, in_addr_len);
+                       &((struct sockaddr_in *)&(server->destaddr))->sin_addr, in_addr_len); // 复制目标地址
                 abuf->len += in_addr_len;
                 memcpy(abuf->data + abuf->len,
-                       &((struct sockaddr_in *)&(server->destaddr))->sin_port, 2);
+                       &((struct sockaddr_in *)&(server->destaddr))->sin_port, 2); // 复制目标端口
             }
 
             abuf->len += 2;
 
-            int err = crypto->encrypt(abuf, server->e_ctx, SOCKET_BUF_SIZE);
+            int err = crypto->encrypt(abuf, server->e_ctx, SOCKET_BUF_SIZE); // ahead 
             if (err) {
                 LOGE("invalid password or cipher");
                 bfree(abuf);
@@ -584,7 +586,7 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
             }
         } else {
             s = send(remote->fd, remote->buf->data + remote->buf->idx,
-                     remote->buf->len, 0);
+                     remote->buf->len, 0); // 发送数据
         }
 
         if (s == -1) {
@@ -791,10 +793,10 @@ accept_cb(EV_P_ ev_io *w, int revents)
     int keepIdle     = 40;
     int keepInterval = 20;
     int keepCount    = 5;
-    setsockopt(remotefd, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepAlive, sizeof(keepAlive));
-    setsockopt(remotefd, SOL_TCP, TCP_KEEPIDLE, (void *)&keepIdle, sizeof(keepIdle));
-    setsockopt(remotefd, SOL_TCP, TCP_KEEPINTVL, (void *)&keepInterval, sizeof(keepInterval));
-    setsockopt(remotefd, SOL_TCP, TCP_KEEPCNT, (void *)&keepCount, sizeof(keepCount));
+    setsockopt(remotefd, SOL_SOCKET, SO_KEEPALIVE, (void *)&keepAlive, sizeof(keepAlive)); // 设置TCP keepalive
+    setsockopt(remotefd, SOL_TCP, TCP_KEEPIDLE, (void *)&keepIdle, sizeof(keepIdle)); // 设置TCP keepalive idle时间
+    setsockopt(remotefd, SOL_TCP, TCP_KEEPINTVL, (void *)&keepInterval, sizeof(keepInterval)); // 设置TCP keepalive interval时间
+    setsockopt(remotefd, SOL_TCP, TCP_KEEPCNT, (void *)&keepCount, sizeof(keepCount)); // 设置TCP keepalive count
 
     // Set non blocking
     setnonblocking(remotefd);
@@ -847,11 +849,11 @@ accept_cb(EV_P_ ev_io *w, int revents)
     server->destaddr = destaddr;
 
     if (fast_open) {
-        // save remote addr for fast open
+        // 保存远程地址用于快速打开
         remote->addr = remote_addr;
         ev_timer_start(EV_A_ & server->delayed_connect_watcher);
     } else {
-        int r = connect(remotefd, remote_addr, get_sockaddr_len(remote_addr));
+        int r = connect(remotefd, remote_addr, get_sockaddr_len(remote_addr)); // 连接远程地址
 
         if (r == -1 && errno != CONNECT_IN_PROGRESS) {
             ERROR("connect");
@@ -859,7 +861,7 @@ accept_cb(EV_P_ ev_io *w, int revents)
             close_and_free_server(EV_A_ server);
             return;
         }
-        // listen to remote connected event
+        // 监听远程连接事件
         ev_io_start(EV_A_ & remote->send_ctx->io);
         ev_timer_start(EV_A_ & remote->send_ctx->watcher);
     }
@@ -888,6 +890,8 @@ signal_cb(EV_P_ ev_signal *w, int revents)
     }
 }
 
+
+// redir用来转发TCP连接
 int
 main(int argc, char **argv)
 {
@@ -1155,12 +1159,13 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
+    // 所以每次只能使用一个插件
     if (plugin != NULL) {
-        uint16_t port = get_local_port();
+        uint16_t port = get_local_port(); // 获取本地端口
         if (port == 0) {
             FATAL("failed to find a free port");
         }
-        snprintf(tmp_port, 8, "%d", port);
+        snprintf(tmp_port, 8, "%d", port); // 将本地端口转换为字符串
         if (is_ipv6only(remote_addr, remote_num, ipv6first)) {
             plugin_host = "::1";
         } else {
@@ -1254,6 +1259,7 @@ main(int argc, char **argv)
         LOGI("set TCP outgoing connection receive buffer size to %d", tcp_outgoing_rcvbuf);
     }
 
+    // 如果插件不为空，则启动插件
     if (plugin != NULL) {
         int len          = 0;
         size_t buf_size  = 256 * remote_num;
@@ -1284,11 +1290,11 @@ main(int argc, char **argv)
 
     // Setup keys
     LOGI("initializing ciphers... %s", method);
-    crypto = crypto_init(password, key, method);
+    crypto = crypto_init(password, key, method); // 初始化加密
     if (crypto == NULL)
         FATAL("failed to initialize ciphers");
 
-    // Setup proxy context
+    // 设置代理上下文
     struct listen_ctx listen_ctx;
     memset(&listen_ctx, 0, sizeof(struct listen_ctx));
     listen_ctx.remote_num  = remote_num;
@@ -1328,14 +1334,14 @@ main(int argc, char **argv)
         if (mode != UDP_ONLY) {
             // Setup socket
             int listenfd;
-            listenfd = create_and_bind(local_addr, local_port);
+            listenfd = create_and_bind(local_addr, local_port); // 创建并绑定本地地址和端口
             if (listenfd == -1) {
                 FATAL("bind() error");
             }
-            if (listen(listenfd, SOMAXCONN) == -1) {
+            if (listen(listenfd, SOMAXCONN) == -1) { // 监听本地地址和端口
                 FATAL("listen() error");
             }
-            setnonblocking(listenfd);
+            setnonblocking(listenfd); // 设置非阻塞
 
             listen_ctx_current->fd = listenfd;
 
@@ -1348,14 +1354,14 @@ main(int argc, char **argv)
             LOGI("UDP relay enabled");
             char *host                       = remote_addr[0].host;
             char *port                       = remote_addr[0].port == NULL ? remote_port : remote_addr[0].port;
-            struct sockaddr_storage *storage = ss_malloc(sizeof(struct sockaddr_storage));
-            memset(storage, 0, sizeof(struct sockaddr_storage));
-            if (get_sockaddr(host, port, storage, 1, ipv6first) == -1) {
+            struct sockaddr_storage *storage = ss_malloc(sizeof(struct sockaddr_storage)); // 分配内存  
+            memset(storage, 0, sizeof(struct sockaddr_storage)); // 初始化内存
+            if (get_sockaddr(host, port, storage, 1, ipv6first) == -1) { // 获取远程地址
                 FATAL("failed to resolve the provided hostname");
             }
             struct sockaddr *addr = (struct sockaddr *)storage;
             init_udprelay(local_addr, local_port, addr,
-                          get_sockaddr_len(addr), mtu, crypto, listen_ctx_current->timeout, NULL);
+                          get_sockaddr_len(addr), mtu, crypto, listen_ctx_current->timeout, NULL); // 初始化UDP转发
         }
 
         if (mode == UDP_ONLY) {
@@ -1364,12 +1370,12 @@ main(int argc, char **argv)
 
         // Handle additionals TOS/DSCP listening ports
         if (dscp_num > 0) {
-            listen_ctx_current      = (listen_ctx_t *)ss_malloc(sizeof(listen_ctx_t));
-            listen_ctx_current      = memcpy(listen_ctx_current, &listen_ctx, sizeof(listen_ctx_t));
-            local_port              = dscp[dscp_num - 1].port;
-            listen_ctx_current->tos = dscp[dscp_num - 1].dscp << 2;
+            listen_ctx_current      = (listen_ctx_t *)ss_malloc(sizeof(listen_ctx_t)); // 分配内存  
+            listen_ctx_current      = memcpy(listen_ctx_current, &listen_ctx, sizeof(listen_ctx_t)); // 复制监听上下文
+            local_port              = dscp[dscp_num - 1].port; // 设置本地端口
+            listen_ctx_current->tos = dscp[dscp_num - 1].dscp << 2; // 设置TOS
         }
-    } while (dscp_num-- > 0);
+    } while (dscp_num-- > 0); // 处理多个DSCP端口
 
     // setuid
     if (user != NULL && !run_as(user)) {

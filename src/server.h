@@ -42,6 +42,7 @@
 
 #include "common.h"
 
+// 监听上下文
 typedef struct listen_ctx {
     ev_io io;
     int fd;
@@ -50,6 +51,7 @@ typedef struct listen_ctx {
     struct ev_loop *loop;
 } listen_ctx_t;
 
+// 服务器上下文
 typedef struct server_ctx {
     ev_io io;
     ev_timer watcher;
@@ -73,6 +75,7 @@ struct dscptracker {
 
 struct query;
 
+// 服务器结构体
 typedef struct server {
     int fd;
     int stage;
@@ -95,19 +98,22 @@ typedef struct server {
 #endif
 } server_t;
 
+// 查询结构体
 typedef struct query {
     server_t *server;
     char hostname[MAX_HOSTNAME_LEN];
 } query_t;
 
+// 远程上下文
 typedef struct remote_ctx {
     ev_io io;
     int connected;
     struct remote *remote;
 } remote_ctx_t;
 
+// 远程结构体
 typedef struct remote {
-    int fd;
+    int fd; // 文件描述符
 #ifdef TCP_FASTOPEN_WINSOCK
     OVERLAPPED olap;
     int connect_ex_done;
