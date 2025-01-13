@@ -59,11 +59,11 @@ typedef mbedtls_md_info_t digest_type_t;
 #define FS_HAVE_XCHACHA20IETF
 #endif
 
-#define ADDRTYPE_MASK 0xF
+#define ADDRTYPE_MASK 0xF // 地址类型掩码
 
-#define CRYPTO_ERROR     -2
-#define CRYPTO_NEED_MORE -1
-#define CRYPTO_OK         0
+#define CRYPTO_ERROR     -2 // 加密错误
+#define CRYPTO_NEED_MORE -1 // 需要更多数据
+#define CRYPTO_OK         0 // 加密成功
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define max(a, b) (((a) > (b)) ? (a) : (b))

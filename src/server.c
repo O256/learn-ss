@@ -128,7 +128,7 @@ int is_bind_local_addr = 0;
 struct sockaddr_storage local_addr_v4;
 struct sockaddr_storage local_addr_v6;
 
-static crypto_t *crypto;
+static crypto_t *crypto; // 加密对象
 
 static int acl       = 0;
 static int mode      = TCP_ONLY;
@@ -733,7 +733,7 @@ connect_to_remote(EV_P_ struct addrinfo *res,
     }
 #endif
 
-    remote_t *remote = new_remote(sockfd);
+    remote_t *remote = new_remote(sockfd); // 创建新的远程对象
 
     if (fast_open) {
 #if defined(MSG_FASTOPEN) && !defined(TCP_FASTOPEN_CONNECT)
@@ -930,6 +930,7 @@ setTosFromConnmark(remote_t *remote, server_t *server)
 
 #endif
 
+// 接收来自客户端的数据
 static void
 server_recv_cb(EV_P_ ev_io *w, int revents)
 {
@@ -940,8 +941,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     buffer_t *buf = server->buf;
 
     if (server->stage == STAGE_STREAM) {
-        remote = server->remote;
-        buf    = remote->buf;
+        remote = server->remote; // 获取远程连接
+        buf    = remote->buf; // 获取远程缓冲区
 
         // Only timer the watcher if a valid connection is established
         ev_timer_again(EV_A_ & server->recv_ctx->watcher);
@@ -967,7 +968,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         }
     }
 
-    // Ignore any new packet if the server is stopped
+    // 如果服务器已停止，忽略任何新数据包
     if (server->stage == STAGE_STOP) {
         return;
     }
@@ -975,7 +976,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     tx      += r;
     buf->len = r;
 
-    int err = crypto->decrypt(buf, server->d_ctx, SOCKET_BUF_SIZE);
+    int err = crypto->decrypt(buf, server->d_ctx, SOCKET_BUF_SIZE); // 解密数据包
 
     if (err == CRYPTO_ERROR) {
         report_addr(server->fd, "authentication error");
@@ -988,9 +989,9 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         return;
     }
 
-    // handshake and transmit data
+    // 握手和传输数据
     if (server->stage == STAGE_STREAM) {
-        int s = send(remote->fd, remote->buf->data, remote->buf->len, 0);
+        int s = send(remote->fd, remote->buf->data, remote->buf->len, 0); // 将解码后的数据发送给远程服务器
         if (s == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // no data, wait for send
@@ -1023,25 +1024,25 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
 
         int offset     = 0;
         int need_query = 0;
-        char atyp      = server->buf->data[offset++];
-        char host[255] = { 0 };
-        uint16_t port  = 0;
-        struct addrinfo info;
-        struct sockaddr_storage storage;
-        memset(&info, 0, sizeof(struct addrinfo));
-        memset(&storage, 0, sizeof(struct sockaddr_storage));
+        char atyp      = server->buf->data[offset++]; // 获取地址类型
+        char host[255] = { 0 }; // 存储主机名
+        uint16_t port  = 0; // 存储端口号
+        struct addrinfo info; // 存储地址信息
+        struct sockaddr_storage storage; // 存储地址存储
+        memset(&info, 0, sizeof(struct addrinfo)); // 初始化地址信息
+        memset(&storage, 0, sizeof(struct sockaddr_storage)); // 初始化地址存储
 
         // get remote addr and port
         if ((atyp & ADDRTYPE_MASK) == 1) {
             // IP V4
-            struct sockaddr_in *addr = (struct sockaddr_in *)&storage;
+            struct sockaddr_in *addr = (struct sockaddr_in *)&storage; // 获取地址
             size_t in_addr_len       = sizeof(struct in_addr);
             addr->sin_family = AF_INET;
             if (server->buf->len >= in_addr_len + 3) {
                 memcpy(&addr->sin_addr, server->buf->data + offset, in_addr_len);
                 inet_ntop(AF_INET, (const void *)(server->buf->data + offset),
                           host, INET_ADDRSTRLEN);
-                offset += in_addr_len;
+                offset += in_addr_len; // 增加偏移量
             } else {
                 report_addr(server->fd, "invalid length for ipv4 address");
                 stop_server(EV_A_ server);
@@ -1149,6 +1150,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
                 LOGI("[%s] connect to %s:%d", remote_port, host, ntohs(port));
         }
 
+        // 如果不需要查询，则连接到远程服务器
         if (!need_query) {
             remote_t *remote = connect_to_remote(EV_A_ & info, server);
 
@@ -1246,6 +1248,7 @@ server_send_cb(EV_P_ ev_io *w, int revents)
     }
 }
 
+// 服务器超时回调函数, 处理服务器超时事件
 static void
 server_timeout_cb(EV_P_ ev_timer *watcher, int revents)
 {
@@ -1332,6 +1335,7 @@ resolv_cb(struct sockaddr *addr, void *data)
     }
 }
 
+// 远程接收回调函数, 从远程接收数据，并发送回客户端
 static void
 remote_recv_cb(EV_P_ ev_io *w, int revents)
 {
@@ -1345,19 +1349,19 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
         return;
     }
 
-    ev_timer_again(EV_A_ & server->recv_ctx->watcher);
+    ev_timer_again(EV_A_ & server->recv_ctx->watcher); // 重新启动计时器
 
-    ssize_t r = recv(remote->fd, server->buf->data, SOCKET_BUF_SIZE, 0);
+    ssize_t r = recv(remote->fd, server->buf->data, SOCKET_BUF_SIZE, 0); // 接收数据
 
     if (r == 0) {
-        // connection closed
+        // 连接关闭
         close_and_free_remote(EV_A_ remote);
         close_and_free_server(EV_A_ server);
         return;
     } else if (r == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // no data
-            // continue to wait for recv
+            // 没有数据
+            // 继续等待接收
             return;
         } else {
             ERROR("remote recv");
@@ -1369,13 +1373,13 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
 
     rx += r;
 
-    // Ignore any new packet if the server is stopped
+    // 如果服务器已停止，则忽略任何新数据
     if (server->stage == STAGE_STOP) {
         return;
     }
 
     server->buf->len = r;
-    int err = crypto->encrypt(server->buf, server->e_ctx, SOCKET_BUF_SIZE);
+    int err = crypto->encrypt(server->buf, server->e_ctx, SOCKET_BUF_SIZE); // 加密数据
 
     if (err) {
         LOGE("invalid password or cipher");
@@ -1387,7 +1391,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
 #ifdef USE_NFCONNTRACK_TOS
     setTosFromConnmark(remote, server);
 #endif
-    int s = send(server->fd, server->buf->data, server->buf->len, 0);
+    int s = send(server->fd, server->buf->data, server->buf->len, 0); // 发送数据
 
     if (s == -1) {
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -1417,6 +1421,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     remote->recv_ctx->connected = 1;
 }
 
+// 远程发送回调函数, 从远程发送数据，并接收客户端的响应
 static void
 remote_send_cb(EV_P_ ev_io *w, int revents)
 {
@@ -1471,46 +1476,46 @@ remote_send_cb(EV_P_ ev_io *w, int revents)
         if (r == 0) {
             remote_send_ctx->connected = 1;
 
-            if (remote->buf->len == 0) {
-                server->stage = STAGE_STREAM;
-                ev_io_stop(EV_A_ & remote_send_ctx->io);
-                ev_io_start(EV_A_ & server->recv_ctx->io);
-                ev_io_start(EV_A_ & remote->recv_ctx->io);
+            if (remote->buf->len == 0) { // 如果远程缓冲区没有数据
+                server->stage = STAGE_STREAM; // 设置服务器状态为STREAM
+                ev_io_stop(EV_A_ & remote_send_ctx->io); // 停止远程发送回调函数
+                ev_io_start(EV_A_ & server->recv_ctx->io); // 启动服务器接收回调函数
+                ev_io_start(EV_A_ & remote->recv_ctx->io); // 启动远程接收回调函数
                 return;
             }
         } else {
             ERROR("getpeername");
-            // not connected
+            // 未连接
             close_and_free_remote(EV_A_ remote);
             close_and_free_server(EV_A_ server);
             return;
         }
     }
 
-    if (remote->buf->len == 0) {
-        // close and free
+    if (remote->buf->len == 0) { // 如果远程缓冲区没有数据
+        // 关闭并释放
         close_and_free_remote(EV_A_ remote);
         close_and_free_server(EV_A_ server);
         return;
     } else {
-        // has data to send
+        // 有数据要发送
         ssize_t s = send(remote->fd, remote->buf->data + remote->buf->idx,
                          remote->buf->len, 0);
         if (s == -1) {
             if (errno != EAGAIN && errno != EWOULDBLOCK) {
                 ERROR("remote_send_send");
-                // close and free
+                // 关闭并释放
                 close_and_free_remote(EV_A_ remote);
                 close_and_free_server(EV_A_ server);
             }
             return;
         } else if (s < remote->buf->len) {
-            // partly sent, move memory, wait for the next time to send
+            // 部分发送，移动内存，等待下一次发送
             remote->buf->len -= s;
             remote->buf->idx += s;
             return;
         } else {
-            // all sent out, wait for reading
+            // 全部发送，等待读取
             remote->buf->len = 0;
             remote->buf->idx = 0;
             ev_io_stop(EV_A_ & remote_send_ctx->io);
@@ -1554,8 +1559,8 @@ new_remote(int fd)
     remote->send_ctx->connected = 0;
     remote->server              = NULL;
 
-    ev_io_init(&remote->recv_ctx->io, remote_recv_cb, fd, EV_READ);
-    ev_io_init(&remote->send_ctx->io, remote_send_cb, fd, EV_WRITE);
+    ev_io_init(&remote->recv_ctx->io, remote_recv_cb, fd, EV_READ); // 初始化远程接收回调函数
+    ev_io_init(&remote->send_ctx->io, remote_send_cb, fd, EV_WRITE); // 初始化远程发送回调函数
 
     return remote;
 }
@@ -1626,10 +1631,10 @@ new_server(int fd, listen_ctx_t *listener)
     crypto->ctx_init(crypto->cipher, server->d_ctx, 0);
 
     int timeout = max(MIN_TCP_IDLE_TIMEOUT, server->listen_ctx->timeout);
-    ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ);
-    ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
-    ev_timer_init(&server->recv_ctx->watcher, server_timeout_cb,
-                  timeout, timeout);
+    ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ); // 初始化服务器接收回调函数
+    ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE); // 初始化服务器发送回调函数
+    ev_timer_init(&server->recv_ctx->watcher, server_timeout_cb,    
+                  timeout, timeout); // 初始化服务器超时回调函数
 
     cork_dllist_add(&connections, &server->entries);
 
@@ -1741,6 +1746,7 @@ plugin_watcher_cb(EV_P_ ev_io *w, int revents)
 
 #endif
 
+// 接受回调函数, 接受客户端连接
 static void
 accept_cb(EV_P_ ev_io *w, int revents)
 {

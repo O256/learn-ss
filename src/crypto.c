@@ -131,6 +131,7 @@ entropy_check(void)
 #endif
 }
 
+// 初始化加密对象
 crypto_t *
 crypto_init(const char *password, const char *key, const char *method)
 {
