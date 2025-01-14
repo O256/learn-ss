@@ -678,7 +678,7 @@ connect_to_remote(EV_P_ struct addrinfo *res,
 
         if (outbound_block_match_host(ipstr) == 1) {
             if (verbose)
-                LOGI("outbound blocked %s", ipstr);
+                LOGI("outbound blocked %s", ipstr); // 输出被阻止的IP
             return NULL;
         }
     }
@@ -1379,7 +1379,7 @@ remote_recv_cb(EV_P_ ev_io *w, int revents)
     }
 
     server->buf->len = r;
-    int err = crypto->encrypt(server->buf, server->e_ctx, SOCKET_BUF_SIZE); // 加密数据
+    int err = crypto->encrypt(server->buf, server->e_ctx, SOCKET_BUF_SIZE); // 将接收到的数据加密到server->buf中
 
     if (err) {
         LOGE("invalid password or cipher");
@@ -1760,8 +1760,8 @@ accept_cb(EV_P_ ev_io *w, int revents)
     char *peer_name = get_peer_name(serverfd);
     if (peer_name != NULL) {
         if (acl) {
-            if ((get_acl_mode() == BLACK_LIST && acl_match_host(peer_name) == 1)
-                || (get_acl_mode() == WHITE_LIST && acl_match_host(peer_name) >= 0)) {
+            if ((get_acl_mode() == BLACK_LIST && acl_match_host(peer_name) == 1) // 黑名单
+                || (get_acl_mode() == WHITE_LIST && acl_match_host(peer_name) >= 0)) { // 白名单
                 LOGE("Access denied from %s", peer_name);
                 close(serverfd);
                 return;

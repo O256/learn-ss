@@ -157,7 +157,7 @@ crypto_init(const char *password, const char *key, const char *method)
                 m = i;
                 break;
             }
-        if (m != -1) {
+        if (m != -1) { // 如果支持的流加密方法
             LOGI("Stream ciphers are insecure, therefore deprecated, and should be almost always avoided.");
             cipher_t *cipher = stream_init(password, key, method);
             if (cipher == NULL)
@@ -182,7 +182,7 @@ crypto_init(const char *password, const char *key, const char *method)
                 break;
             }
         if (m != -1) {
-            cipher_t *cipher = aead_init(password, key, method);
+            cipher_t *cipher = aead_init(password, key, method); 
             if (cipher == NULL)
                 return NULL;
             crypto_t *crypto = (crypto_t *)ss_malloc(sizeof(crypto_t));

@@ -40,35 +40,31 @@
 /*
  * Spec: http://shadowsocks.org/en/spec/Stream-Ciphers.html
  *
- * Stream ciphers provide only confidentiality. Data integrity and authenticity is not guaranteed. Users should use AEAD
- * ciphers whenever possible.
+ * 流加密只提供机密性。数据完整性和真实性无法得到保证。用户应尽可能使用 AEAD 加密方式。
  *
  * Stream Encryption/Decryption
  *
- * Stream_encrypt is a function that takes a secret key, an initialization vector, a message, and produces a ciphertext
- * with the same length as the message.
+ * Stream_encrypt 是一个函数，它接受一个密钥、一个初始化向量、一个消息，并生成一个与消息长度相同的密文。
  *
  *      Stream_encrypt(key, IV, message) => ciphertext
  *
- * Stream_decrypt is a function that takes a secret key, an initializaiton vector, a ciphertext, and produces the
- * original message.
+ * Stream_decrypt 是一个函数，它接受一个密钥、一个初始化向量、一个密文，并生成原始消息。
  *
  *      Stream_decrypt(key, IV, ciphertext) => message
  *
  * TCP
  *
- * A stream cipher encrypted TCP stream starts with a randomly generated initializaiton vector, followed by encrypted
- * payload data.
+ * 一个流加密的TCP流以一个随机生成的初始化向量开始，后面跟着加密的负载数据。
  *
  *      [IV][encrypted payload]
  *
  * UDP
  *
- * A stream cipher encrypted UDP packet has the following structure:
+ * 一个流加密的UDP包的结构如下：
  *
  *      [IV][encrypted payload]
  *
- * Each UDP packet is encrypted/decrypted independently with a randomly generated initialization vector.
+ * 每个UDP包独立加密/解密，使用随机生成的初始化向量。
  *
  */
 

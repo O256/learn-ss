@@ -47,17 +47,20 @@
 #define SOCKS5_REP_ADDRTYPE_NOT_SUPPORTED 0x08
 #define SOCKS5_REP_FF_UNASSIGNED 0x09
 
+// socket5 握手请求
 struct method_select_request {
     unsigned char ver;
     unsigned char nmethods;
     unsigned char methods[0];
 } __attribute__((packed, aligned(1)));
 
+// socket5 握手响应
 struct method_select_response {
     unsigned char ver;
     unsigned char method;
 } __attribute__((packed, aligned(1)));
 
+// socket5 请求
 struct socks5_request {
     unsigned char ver;
     unsigned char cmd;
@@ -65,6 +68,7 @@ struct socks5_request {
     unsigned char atyp;
 } __attribute__((packed, aligned(1)));
 
+// socket5 响应
 struct socks5_response {
     unsigned char ver;
     unsigned char rep;

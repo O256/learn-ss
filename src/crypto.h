@@ -95,16 +95,18 @@ typedef struct buffer {
     char   *data; // 数据
 } buffer_t;
 
+// 加密算法
 typedef struct {
-    int method;
-    int skey;
-    cipher_kt_t *info;
-    size_t nonce_len;
-    size_t key_len;
-    size_t tag_len;
-    uint8_t key[MAX_KEY_LENGTH];
+    int method; // 加密方法
+    int skey; // 子密钥
+    cipher_kt_t *info; // 加密算法信息
+    size_t nonce_len; // 非重复数长度
+    size_t key_len; // 密钥长度
+    size_t tag_len; // 标签长度
+    uint8_t key[MAX_KEY_LENGTH]; // 密钥
 } cipher_t;
 
+// 加密上下文
 typedef struct {
     uint32_t init;
     uint64_t counter;

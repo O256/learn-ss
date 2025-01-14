@@ -61,49 +61,43 @@
 /*
  * Spec: http://shadowsocks.org/en/spec/AEAD-Ciphers.html
  *
- * The way Shadowsocks using AEAD ciphers is specified in SIP004 and amended in SIP007. SIP004 was proposed by @Mygod
- * with design inspirations from @wongsyrone, @Noisyfox and @breakwa11. SIP007 was proposed by @riobard with input from
- * @madeye, @Mygod, @wongsyrone, and many others.
+ *  Shadowsocks 使用 AEAD 加密的方式在 SIP004 中定义并在 SIP007 中修订。SIP004 由 @Mygod 提出,
+ * 设计灵感来自 @wongsyrone、@Noisyfox 和 @breakwa11。SIP007 由 @riobard 提出,
+ * 得到了 @madeye、@Mygod、@wongsyrone 等多位贡献者的建议。
  *
- * Key Derivation
+ * 密钥派生
  *
- * HKDF_SHA1 is a function that takes a secret key, a non-secret salt, an info string, and produces a subkey that is
- * cryptographically strong even if the input secret key is weak.
+ * HKDF_SHA1 是一个函数，它接受一个密钥、一个非秘密盐、一个信息字符串，并生成一个即使输入密钥较弱也具有强加密性的子密钥。
  *
  *      HKDF_SHA1(key, salt, info) => subkey
  *
- * The info string binds the generated subkey to a specific application context. In our case, it must be the string
- * "ss-subkey" without quotes.
+ * 信息字符串将生成的子密钥绑定到特定应用程序上下文。在我们的例子中，它必须是 "ss-subkey" 而不能有引号。
  *
- * We derive a per-session subkey from a pre-shared master key using HKDF_SHA1. Salt must be unique through the entire
- * life of the pre-shared master key.
+ * 我们使用 HKDF_SHA1 从预共享主密钥派生一个会话子密钥。盐必须在整个预共享主密钥的生命周期中保持唯一。
  *
  * TCP
  *
- * An AEAD encrypted TCP stream starts with a randomly generated salt to derive the per-session subkey, followed by any
- * number of encrypted chunks. Each chunk has the following structure:
+ * 一个 AEAD 加密的 TCP 流以一个随机生成的盐开始，用于派生会话子密钥，后面跟着任意数量的加密数据块。每个数据块的结构如下：
  *
  *      [encrypted payload length][length tag][encrypted payload][payload tag]
  *
- * Payload length is a 2-byte big-endian unsigned integer capped at 0x3FFF. The higher two bits are reserved and must be
- * set to zero. Payload is therefore limited to 16*1024 - 1 bytes.
+ * 数据块长度是一个 2 字节的大端无符号整数，上限为 0x3FFF。更高的两位保留，必须设置为零。因此，数据块被限制为 16*1024 - 1 字节。
  *
- * The first AEAD encrypt/decrypt operation uses a counting nonce starting from 0. After each encrypt/decrypt operation,
- * the nonce is incremented by one as if it were an unsigned little-endian integer. Note that each TCP chunk involves
- * two AEAD encrypt/decrypt operation: one for the payload length, and one for the payload. Therefore each chunk
- * increases the nonce twice.
+ * 第一次 AEAD 加密/解密操作使用从 0 开始的计数非重复。每次加密/解密操作后，非重复数增加 1，就像它是一个无符号的小端整数。
+ * 请注意，每个 TCP 数据块涉及两次 AEAD 加密/解密操作：一次用于数据块长度，一次用于数据块。因此，每个数据块
+ * 的非重复数增加两次。
  *
  * UDP
  *
- * An AEAD encrypted UDP packet has the following structure:
+ * 一个 AEAD 加密的 UDP 包的结构如下：
  *
  *      [salt][encrypted payload][tag]
  *
- * The salt is used to derive the per-session subkey and must be generated randomly to ensure uniqueness. Each UDP
- * packet is encrypted/decrypted independently, using the derived subkey and a nonce with all zero bytes.
+ * 盐用于派生会话子密钥，必须随机生成以确保唯一性。每个 UDP 包独立加密/解密，使用派生的子密钥和所有零字节的非重复数。
  *
  */
 
+// 支持的 AEAD 加密方法
 const char *supported_aead_ciphers[AEAD_CIPHER_NUM] = {
     "aes-128-gcm",
     "aes-192-gcm",
@@ -148,6 +142,7 @@ static const int supported_aead_ciphers_tag_size[AEAD_CIPHER_NUM] = {
 #endif
 };
 
+// 加密函数, 使用 AEAD 加密方法对数据进行加密
 static int
 aead_cipher_encrypt(cipher_ctx_t *cipher_ctx, // 加密上下文 
                     uint8_t *c, // 加密后的数据
@@ -166,15 +161,15 @@ aead_cipher_encrypt(cipher_ctx_t *cipher_ctx, // 加密上下文
     size_t tlen = cipher_ctx->cipher->tag_len;
 
     switch (cipher_ctx->cipher->method) {
-    case AES256GCM: // Only AES-256-GCM is supported by libsodium.
-        if (cipher_ctx->aes256gcm_ctx != NULL) { // Use it if availble
+    case AES256GCM: // 仅支持 libsodium 的 AES-256-GCM
+        if (cipher_ctx->aes256gcm_ctx != NULL) { // 如果 AES-256-GCM 上下文可用，则使用它
             err = crypto_aead_aes256gcm_encrypt_afternm(c, &long_clen, m, mlen,
                                                         ad, adlen, NULL, n,
                                                         (const aes256gcm_ctx *)cipher_ctx->aes256gcm_ctx);
-            *clen = (size_t)long_clen; // it's safe to cast 64bit to 32bit length here
+            *clen = (size_t)long_clen; // 安全地将 64 位长度转换为 32 位长度
             break;
         }
-    // Otherwise, just use the mbedTLS one with crappy AES-NI.
+    // 否则，使用 mbedTLS 的 AES-NI 加密
     case AES192GCM:
     case AES128GCM:
 
@@ -184,7 +179,7 @@ aead_cipher_encrypt(cipher_ctx_t *cipher_ctx, // 加密上下文
         break;
     case CHACHA20POLY1305IETF:
         err = crypto_aead_chacha20poly1305_ietf_encrypt(c, &long_clen, m, mlen,
-                                                        ad, adlen, NULL, n, k);
+                                                        ad, adlen, NULL, n, k); // 使用 libsodium 的 ChaCha20-Poly1305-IETF 加密
         *clen = (size_t)long_clen;
         break;
 #ifdef FS_HAVE_XCHACHA20IETF
@@ -201,29 +196,30 @@ aead_cipher_encrypt(cipher_ctx_t *cipher_ctx, // 加密上下文
     return err;
 }
 
+// 解密函数, 使用 AEAD 解密方法对数据进行解密
 static int
-aead_cipher_decrypt(cipher_ctx_t *cipher_ctx,
-                    uint8_t *p, size_t *plen,
-                    uint8_t *m, size_t mlen,
-                    uint8_t *ad, size_t adlen,
-                    uint8_t *n, uint8_t *k)
+aead_cipher_decrypt(cipher_ctx_t *cipher_ctx, // 解密上下文 
+                    uint8_t *p, size_t *plen, // 解密后的数据
+                    uint8_t *m, size_t mlen, // 明文
+                    uint8_t *ad, size_t adlen, // 附加数据
+                    uint8_t *n, uint8_t *k) // 非重复
 {
     int err                      = CRYPTO_ERROR;
     unsigned long long long_plen = 0;
 
-    size_t nlen = cipher_ctx->cipher->nonce_len;
-    size_t tlen = cipher_ctx->cipher->tag_len;
+    size_t nlen = cipher_ctx->cipher->nonce_len; // 非重复数长度
+    size_t tlen = cipher_ctx->cipher->tag_len; // 标签长度
 
     switch (cipher_ctx->cipher->method) {
-    case AES256GCM: // Only AES-256-GCM is supported by libsodium.
-        if (cipher_ctx->aes256gcm_ctx != NULL) { // Use it if availble
+    case AES256GCM: // 仅支持 libsodium 的 AES-256-GCM
+        if (cipher_ctx->aes256gcm_ctx != NULL) { // 如果 AES-256-GCM 上下文可用，则使用它
             err = crypto_aead_aes256gcm_decrypt_afternm(p, &long_plen, NULL, m, mlen,
                                                         ad, adlen, n,
                                                         (const aes256gcm_ctx *)cipher_ctx->aes256gcm_ctx);
             *plen = (size_t)long_plen; // it's safe to cast 64bit to 32bit length here
             break;
         }
-    // Otherwise, just use the mbedTLS one with crappy AES-NI.
+    // 否则，使用 mbedTLS 的 AES-NI 解密
     case AES192GCM:
     case AES128GCM:
         err = mbedtls_cipher_auth_decrypt(cipher_ctx->evp, n, nlen, ad, adlen,
@@ -231,7 +227,7 @@ aead_cipher_decrypt(cipher_ctx_t *cipher_ctx,
         break;
     case CHACHA20POLY1305IETF:
         err = crypto_aead_chacha20poly1305_ietf_decrypt(p, &long_plen, NULL, m, mlen,
-                                                        ad, adlen, n, k);
+                                                        ad, adlen, n, k); // 使用 libsodium 的 ChaCha20-Poly1305-IETF 解密
         *plen = (size_t)long_plen; // it's safe to cast 64bit to 32bit length here
         break;
 #ifdef FS_HAVE_XCHACHA20IETF
@@ -245,55 +241,55 @@ aead_cipher_decrypt(cipher_ctx_t *cipher_ctx,
         return CRYPTO_ERROR;
     }
 
-    // The success return value ln libsodium and mbedTLS are both 0
+    // 成功返回值在 libsodium 和 mbedTLS 中都是 0
     if (err != 0)
-        // Although we never return any library specific value in the caller,
-        // here we still set the error code to CRYPTO_ERROR to avoid confusion.
+        // 尽管我们在调用者中从不返回任何库特定的值，
+        // 这里我们仍然将错误代码设置为 CRYPTO_ERROR 以避免混淆。
         err = CRYPTO_ERROR;
 
     return err;
 }
 
 /*
- * get basic cipher info structure
- * it's a wrapper offered by crypto library
+ * 获取基本加密算法信息结构
+ * 这是由 crypto 库提供的包装器
  */
 const cipher_kt_t *
-aead_get_cipher_type(int method)
+aead_get_cipher_type(int method) // 获取加密算法
 {
     if (method < AES128GCM || method >= AEAD_CIPHER_NUM) {
         LOGE("aead_get_cipher_type(): Illegal method");
         return NULL;
     }
 
-    /* cipher that don't use mbed TLS, just return */
+    /* 不使用 mbed TLS 的加密算法，直接返回 */
     if (method >= CHACHA20POLY1305IETF) {
         return NULL;
     }
 
-    const char *ciphername  = supported_aead_ciphers[method];
-    const char *mbedtlsname = supported_aead_ciphers_mbedtls[method];
-    if (strcmp(mbedtlsname, CIPHER_UNSUPPORTED) == 0) {
+    const char *ciphername  = supported_aead_ciphers[method]; // 加密算法名称
+    const char *mbedtlsname = supported_aead_ciphers_mbedtls[method]; // mbedTLS 加密算法名称
+    if (strcmp(mbedtlsname, CIPHER_UNSUPPORTED) == 0) { // 如果 mbedTLS 不支持该加密算法
         LOGE("Cipher %s currently is not supported by mbed TLS library",
              ciphername);
         return NULL;
     }
-    return mbedtls_cipher_info_from_string(mbedtlsname);
+    return mbedtls_cipher_info_from_string(mbedtlsname); // 从 mbedTLS 库中获取加密算法信息
 }
 
 static void
-aead_cipher_ctx_set_key(cipher_ctx_t *cipher_ctx, int enc)
+aead_cipher_ctx_set_key(cipher_ctx_t *cipher_ctx, int enc) // 设置密钥
 {
-    const digest_type_t *md = mbedtls_md_info_from_string("SHA1");
+    const digest_type_t *md = mbedtls_md_info_from_string("SHA1"); // 获取 SHA1 哈希算法
     if (md == NULL) {
         FATAL("SHA1 Digest not found in crypto library");
     }
 
-    int err = crypto_hkdf(md,
+    int err = crypto_hkdf(md, // 使用 HKDF 生成子密钥
                           cipher_ctx->salt, cipher_ctx->cipher->key_len,
                           cipher_ctx->cipher->key, cipher_ctx->cipher->key_len,
                           (uint8_t *)SUBKEY_INFO, strlen(SUBKEY_INFO),
-                          cipher_ctx->skey, cipher_ctx->cipher->key_len);
+                          cipher_ctx->skey, cipher_ctx->cipher->key_len); // 使用 HKDF 生成子密钥
     if (err) {
         FATAL("Unable to generate subkey");
     }
@@ -320,6 +316,7 @@ aead_cipher_ctx_set_key(cipher_ctx_t *cipher_ctx, int enc)
     }
 }
 
+// 初始化上下文
 static void
 aead_cipher_ctx_init(cipher_ctx_t *cipher_ctx, int method, int enc)
 {
@@ -360,6 +357,7 @@ aead_cipher_ctx_init(cipher_ctx_t *cipher_ctx, int method, int enc)
 #endif
 }
 
+// 初始化上下文
 void
 aead_ctx_init(cipher_t *cipher, cipher_ctx_t *cipher_ctx, int enc)
 {
@@ -373,6 +371,7 @@ aead_ctx_init(cipher_t *cipher, cipher_ctx_t *cipher_ctx, int enc)
     }
 }
 
+// 释放上下文
 void
 aead_ctx_release(cipher_ctx_t *cipher_ctx)
 {
@@ -395,6 +394,8 @@ aead_ctx_release(cipher_ctx_t *cipher_ctx)
     ss_free(cipher_ctx->evp);
 }
 
+// 加密所有数据，加密的是 plaintext 中的数据，加密后的数据写入到 ciphertext 中， 
+// 加密后的数据长度为 salt_len + tag_len + plaintext->len
 int
 aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
 {
@@ -405,12 +406,13 @@ aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
     size_t tag_len  = cipher->tag_len;
     int err         = CRYPTO_OK;
 
+    // 创建临时缓冲区
     static buffer_t tmp = { 0, 0, 0, NULL };
     brealloc(&tmp, salt_len + tag_len + plaintext->len, capacity);
     buffer_t *ciphertext = &tmp;
     ciphertext->len = tag_len + plaintext->len;
 
-    /* copy salt to first pos */
+    /* 将盐复制到第一个位置 */
     memcpy(ciphertext->data, cipher_ctx.salt, salt_len);
 
     ppbloom_add((void *)cipher_ctx.salt, salt_len);
@@ -418,10 +420,11 @@ aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
     aead_cipher_ctx_set_key(&cipher_ctx, 1);
 
     size_t clen = ciphertext->len;
-    err = aead_cipher_encrypt(&cipher_ctx,
-                              (uint8_t *)ciphertext->data + salt_len, &clen,
-                              (uint8_t *)plaintext->data, plaintext->len,
-                              NULL, 0, cipher_ctx.nonce, cipher_ctx.skey);
+
+    err = aead_cipher_encrypt(&cipher_ctx, // 加密
+                              (uint8_t *)ciphertext->data + salt_len, &clen, // 加密后的数据
+                              (uint8_t *)plaintext->data, plaintext->len, // 明文
+                              NULL, 0, cipher_ctx.nonce, cipher_ctx.skey); // 非重复
 
     aead_ctx_release(&cipher_ctx);
 
@@ -430,48 +433,49 @@ aead_encrypt_all(buffer_t *plaintext, cipher_t *cipher, size_t capacity)
 
     assert(ciphertext->len == clen);
 
-    brealloc(plaintext, salt_len + ciphertext->len, capacity);
-    memcpy(plaintext->data, ciphertext->data, salt_len + ciphertext->len);
-    plaintext->len = salt_len + ciphertext->len;
+    brealloc(plaintext, salt_len + ciphertext->len, capacity); // q: 这样会不会导致传入的指针失效？ a: 不会，因为 brealloc 会重新分配内存，并复制数据
+    memcpy(plaintext->data, ciphertext->data, salt_len + ciphertext->len); // 复制加密后的数据
+    plaintext->len = salt_len + ciphertext->len; // 加密后的数据长度
 
     return CRYPTO_OK;
 }
 
+// 解密所有数据
 int
 aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
 {
-    size_t salt_len = cipher->key_len;
-    size_t tag_len  = cipher->tag_len;
-    int err         = CRYPTO_OK;
+    size_t salt_len = cipher->key_len; // 盐长度
+    size_t tag_len  = cipher->tag_len; // 标签长度
+    int err         = CRYPTO_OK; // 错误码
 
-    if (ciphertext->len <= salt_len + tag_len) {
+    if (ciphertext->len <= salt_len + tag_len) { // 如果数据长度小于盐长度和标签长度之和，则返回错误
         return CRYPTO_ERROR;
     }
 
     cipher_ctx_t cipher_ctx;
-    aead_ctx_init(cipher, &cipher_ctx, 0);
+    aead_ctx_init(cipher, &cipher_ctx, 0); // 初始化上下文
 
     static buffer_t tmp = { 0, 0, 0, NULL };
-    brealloc(&tmp, ciphertext->len, capacity);
+    brealloc(&tmp, ciphertext->len, capacity); // 重新分配缓冲区
     buffer_t *plaintext = &tmp;
     plaintext->len = ciphertext->len - salt_len - tag_len;
 
     /* get salt */
     uint8_t *salt = cipher_ctx.salt;
-    memcpy(salt, ciphertext->data, salt_len);
+    memcpy(salt, ciphertext->data, salt_len); // 复制盐
 
-    if (ppbloom_check((void *)salt, salt_len) == 1) {
+    if (ppbloom_check((void *)salt, salt_len) == 1) { // 检查盐是否重复
         LOGE("crypto: AEAD: repeat salt detected");
         return CRYPTO_ERROR;
     }
 
-    aead_cipher_ctx_set_key(&cipher_ctx, 0);
+    aead_cipher_ctx_set_key(&cipher_ctx, 0); // 设置密钥
 
-    size_t plen = plaintext->len;
-    err = aead_cipher_decrypt(&cipher_ctx,
-                              (uint8_t *)plaintext->data, &plen,
-                              (uint8_t *)ciphertext->data + salt_len,
-                              ciphertext->len - salt_len, NULL, 0,
+    size_t plen = plaintext->len; // 明文长度   
+    err = aead_cipher_decrypt(&cipher_ctx, // 解密
+                              (uint8_t *)plaintext->data, &plen, // 明文
+                              (uint8_t *)ciphertext->data + salt_len, // 加密后的数据
+                              ciphertext->len - salt_len, NULL, 0, // 非重复
                               cipher_ctx.nonce, cipher_ctx.skey);
 
     aead_ctx_release(&cipher_ctx);
@@ -479,11 +483,11 @@ aead_decrypt_all(buffer_t *ciphertext, cipher_t *cipher, size_t capacity)
     if (err)
         return CRYPTO_ERROR;
 
-    ppbloom_add((void *)salt, salt_len);
+    ppbloom_add((void *)salt, salt_len); // 将盐添加到布隆过滤器中
 
-    brealloc(ciphertext, plaintext->len, capacity);
-    memcpy(ciphertext->data, plaintext->data, plaintext->len);
-    ciphertext->len = plaintext->len;
+    brealloc(ciphertext, plaintext->len, capacity); // 重新分配缓冲区
+    memcpy(ciphertext->data, plaintext->data, plaintext->len); // 复制明文
+    ciphertext->len = plaintext->len; // 明文长度
 
     return CRYPTO_OK;
 }
@@ -579,6 +583,7 @@ aead_encrypt(buffer_t *plaintext, cipher_ctx_t *cipher_ctx, size_t capacity)
     return 0;
 }
 
+// 解密块，将数据解密之后，写入到p中
 static int
 aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
                    size_t *plen, size_t *clen)
@@ -592,34 +597,34 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
         return CRYPTO_NEED_MORE;
 
     uint8_t len_buf[2];
-    err = aead_cipher_decrypt(ctx, len_buf, plen, c, CHUNK_SIZE_LEN + tlen,
-                              NULL, 0, n, ctx->skey);
+    err = aead_cipher_decrypt(ctx, len_buf, plen, c, CHUNK_SIZE_LEN + tlen, // 解密
+                              NULL, 0, n, ctx->skey); // 非重复
     if (err)
         return CRYPTO_ERROR;
     assert(*plen == CHUNK_SIZE_LEN);
 
-    mlen = load16_be(len_buf);
-    mlen = mlen & CHUNK_SIZE_MASK;
+    mlen = load16_be(len_buf); // 从长度缓冲区中加载长度
+    mlen = mlen & CHUNK_SIZE_MASK; // 将长度与掩码进行按位与操作
 
     if (mlen == 0)
         return CRYPTO_ERROR;
 
-    size_t chunk_len = 2 * tlen + CHUNK_SIZE_LEN + mlen;
+    size_t chunk_len = 2 * tlen + CHUNK_SIZE_LEN + mlen; // 块长度
 
     if (*clen < chunk_len)
         return CRYPTO_NEED_MORE;
 
-    sodium_increment(n, nlen);
+    sodium_increment(n, nlen); // 非重复
 
-    err = aead_cipher_decrypt(ctx, p, plen, c + CHUNK_SIZE_LEN + tlen, mlen + tlen,
-                              NULL, 0, n, ctx->skey);
+    err = aead_cipher_decrypt(ctx, p, plen, c + CHUNK_SIZE_LEN + tlen, mlen + tlen, // 解密
+                              NULL, 0, n, ctx->skey); // 非重复
     if (err)
         return CRYPTO_ERROR;
-    assert(*plen == mlen);
+    assert(*plen == mlen); // 断言
 
-    sodium_increment(n, nlen);
+    sodium_increment(n, nlen); // 非重复
 
-    *clen = *clen - chunk_len;
+    *clen = *clen - chunk_len; // 更新数据长度
 
     return CRYPTO_OK;
 }
@@ -628,75 +633,75 @@ aead_chunk_decrypt(cipher_ctx_t *ctx, uint8_t *p, uint8_t *c, uint8_t *n,
 int
 aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
 {
-    int err             = CRYPTO_OK;
-    static buffer_t tmp = { 0, 0, 0, NULL };
+    int err             = CRYPTO_OK; // 错误码
+    static buffer_t tmp = { 0, 0, 0, NULL }; // 临时缓冲区
 
-    cipher_t *cipher = cipher_ctx->cipher;
+    cipher_t *cipher = cipher_ctx->cipher; // 获得加密算法
 
-    size_t salt_len = cipher->key_len;
+    size_t salt_len = cipher->key_len; // 盐长度
 
-    if (cipher_ctx->chunk == NULL) {
-        cipher_ctx->chunk = (buffer_t *)ss_malloc(sizeof(buffer_t));
-        memset(cipher_ctx->chunk, 0, sizeof(buffer_t));
-        balloc(cipher_ctx->chunk, capacity);
+    if (cipher_ctx->chunk == NULL) { // 如果chunk为空
+        cipher_ctx->chunk = (buffer_t *)ss_malloc(sizeof(buffer_t)); // 分配内存
+        memset(cipher_ctx->chunk, 0, sizeof(buffer_t)); // 初始化
+        balloc(cipher_ctx->chunk, capacity); // 分配内存
     }
 
     brealloc(cipher_ctx->chunk,
-             cipher_ctx->chunk->len + ciphertext->len, capacity);
-    memcpy(cipher_ctx->chunk->data + cipher_ctx->chunk->len,
-           ciphertext->data, ciphertext->len);
-    cipher_ctx->chunk->len += ciphertext->len;
+             cipher_ctx->chunk->len + ciphertext->len, capacity); // 重新分配缓冲区
+    memcpy(cipher_ctx->chunk->data + cipher_ctx->chunk->len, // 复制数据
+           ciphertext->data, ciphertext->len); // 复制数据
+    cipher_ctx->chunk->len += ciphertext->len; // 更新数据长度
 
-    brealloc(&tmp, cipher_ctx->chunk->len, capacity);
-    buffer_t *plaintext = &tmp;
+    brealloc(&tmp, cipher_ctx->chunk->len, capacity); // 重新分配缓冲区
+    buffer_t *plaintext = &tmp; // 明文
 
-    if (!cipher_ctx->init) {
-        if (cipher_ctx->chunk->len <= salt_len)
-            return CRYPTO_NEED_MORE;
+    if (!cipher_ctx->init) { // 如果未初始化
+        if (cipher_ctx->chunk->len <= salt_len) // 如果数据长度小于盐长度
+            return CRYPTO_NEED_MORE; // 返回需要更多的数据
 
-        memcpy(cipher_ctx->salt, cipher_ctx->chunk->data, salt_len);
+        memcpy(cipher_ctx->salt, cipher_ctx->chunk->data, salt_len); // 复制盐
 
-        if (ppbloom_check((void *)cipher_ctx->salt, salt_len) == 1) {
+        if (ppbloom_check((void *)cipher_ctx->salt, salt_len) == 1) { // 检查盐是否重复
             LOGE("crypto: AEAD: repeat salt detected");
             return CRYPTO_ERROR;
         }
 
-        aead_cipher_ctx_set_key(cipher_ctx, 0);
+        aead_cipher_ctx_set_key(cipher_ctx, 0); // 设置密钥
 
-        memmove(cipher_ctx->chunk->data, cipher_ctx->chunk->data + salt_len,
-                cipher_ctx->chunk->len - salt_len);
+        memmove(cipher_ctx->chunk->data, cipher_ctx->chunk->data + salt_len, // 移动数据
+                cipher_ctx->chunk->len - salt_len); // 更新数据长度 
         cipher_ctx->chunk->len -= salt_len;
 
         cipher_ctx->init = 1;
     }
 
-    size_t plen = 0;
-    size_t cidx = 0;
+    size_t plen = 0; // 明文长度
+    size_t cidx = 0; // 数据索引
     while (cipher_ctx->chunk->len > 0) {
-        size_t chunk_clen = cipher_ctx->chunk->len;
-        size_t chunk_plen = 0;
-        err = aead_chunk_decrypt(cipher_ctx,
-                                 (uint8_t *)plaintext->data + plen,
-                                 (uint8_t *)cipher_ctx->chunk->data + cidx,
-                                 cipher_ctx->nonce, &chunk_plen, &chunk_clen);
+        size_t chunk_clen = cipher_ctx->chunk->len; // 块长度
+        size_t chunk_plen = 0; // 明文长度
+        err = aead_chunk_decrypt(cipher_ctx, // 解密
+                                 (uint8_t *)plaintext->data + plen, // 明文
+                                 (uint8_t *)cipher_ctx->chunk->data + cidx, // 加密后的数据
+                                 cipher_ctx->nonce, &chunk_plen, &chunk_clen); // 非重复
         if (err == CRYPTO_ERROR) {
             return err;
-        } else if (err == CRYPTO_NEED_MORE) {
-            if (plen == 0)
-                return err;
+        } else if (err == CRYPTO_NEED_MORE) { // 如果需要更多的数据 
+            if (plen == 0) // 如果明文长度为0
+                return err; // 返回错误
             else{
-                memmove((uint8_t *)cipher_ctx->chunk->data, 
-			(uint8_t *)cipher_ctx->chunk->data + cidx, chunk_clen);
-                break;
+                memmove((uint8_t *)cipher_ctx->chunk->data, // 移动数据
+			(uint8_t *)cipher_ctx->chunk->data + cidx, chunk_clen); // 更新数据长度
+                break; // 退出循环
             }
         }
-        cipher_ctx->chunk->len = chunk_clen;
-        cidx += cipher_ctx->cipher->tag_len * 2 + CHUNK_SIZE_LEN + chunk_plen;
-        plen                  += chunk_plen;
+        cipher_ctx->chunk->len = chunk_clen; // 更新数据长度
+        cidx += cipher_ctx->cipher->tag_len * 2 + CHUNK_SIZE_LEN + chunk_plen; // 更新数据索引
+        plen                  += chunk_plen; // 更新明文长度
     }
-    plaintext->len = plen;
+    plaintext->len = plen; // 更新明文长度
 
-    // Add the salt to bloom filter
+    // 将盐添加到布隆过滤器中
     if (cipher_ctx->init == 1) {
         if (ppbloom_check((void *)cipher_ctx->salt, salt_len) == 1) {
             LOGE("crypto: AEAD: repeat salt detected");
@@ -706,17 +711,21 @@ aead_decrypt(buffer_t *ciphertext, cipher_ctx_t *cipher_ctx, size_t capacity)
         cipher_ctx->init = 2;
     }
 
-    brealloc(ciphertext, plaintext->len, capacity);
-    memcpy(ciphertext->data, plaintext->data, plaintext->len);
-    ciphertext->len = plaintext->len;
+    brealloc(ciphertext, plaintext->len, capacity); // 重新分配缓冲区
+    memcpy(ciphertext->data, plaintext->data, plaintext->len); // 复制明文
+    ciphertext->len = plaintext->len; // 更新明文长度
 
-    return CRYPTO_OK;
+    return CRYPTO_OK; // 返回成功
 }
 
+// 初始化密钥
+// 方法：加密算法
+// 密码：密码
+// 密钥：密钥
 cipher_t *
 aead_key_init(int method, const char *pass, const char *key)
 {
-    if (method < AES128GCM || method >= AEAD_CIPHER_NUM) {
+    if (method < AES128GCM || method >= AEAD_CIPHER_NUM) { // 如果方法不合法
         LOGE("aead_key_init(): Illegal method");
         return NULL;
     }
@@ -726,37 +735,41 @@ aead_key_init(int method, const char *pass, const char *key)
 
     if (method >= CHACHA20POLY1305IETF) {
         cipher_kt_t *cipher_info = (cipher_kt_t *)ss_malloc(sizeof(cipher_kt_t));
-        cipher->info             = cipher_info;
-        cipher->info->base       = NULL;
-        cipher->info->key_bitlen = supported_aead_ciphers_key_size[method] * 8;
-        cipher->info->iv_size    = supported_aead_ciphers_nonce_size[method];
+        cipher->info             = cipher_info; // 设置密钥信息
+        cipher->info->base       = NULL; // 设置密钥信息
+        cipher->info->key_bitlen = supported_aead_ciphers_key_size[method] * 8; // 设置密钥长度
+        cipher->info->iv_size    = supported_aead_ciphers_nonce_size[method]; // 设置iv长度
     } else {
-        cipher->info = (cipher_kt_t *)aead_get_cipher_type(method);
+        cipher->info = (cipher_kt_t *)aead_get_cipher_type(method); // 设置密钥信息
     }
 
-    if (cipher->info == NULL && cipher->key_len == 0) {
-        LOGE("Cipher %s not found in crypto library", supported_aead_ciphers[method]);
-        FATAL("Cannot initialize cipher");
+    if (cipher->info == NULL && cipher->key_len == 0) { // 如果密钥信息为空且密钥长度为0
+        LOGE("Cipher %s not found in crypto library", supported_aead_ciphers[method]); // 输出错误
+        FATAL("Cannot initialize cipher"); // 输出错误
     }
 
     if (key != NULL)
-        cipher->key_len = crypto_parse_key(key, cipher->key,
-                                           supported_aead_ciphers_key_size[method]);
+        cipher->key_len = crypto_parse_key(key, cipher->key, // 解析密钥
+                                           supported_aead_ciphers_key_size[method]); // 设置密钥长度
     else
-        cipher->key_len = crypto_derive_key(pass, cipher->key,
-                                            supported_aead_ciphers_key_size[method]);
+        cipher->key_len = crypto_derive_key(pass, cipher->key, // 导出密钥
+                                            supported_aead_ciphers_key_size[method]); // 设置密钥长度
 
-    if (cipher->key_len == 0) {
-        FATAL("Cannot generate key and nonce");
+    if (cipher->key_len == 0) { // 如果密钥长度为0
+        FATAL("Cannot generate key and nonce"); // 输出错误
     }
 
-    cipher->nonce_len = supported_aead_ciphers_nonce_size[method];
-    cipher->tag_len   = supported_aead_ciphers_tag_size[method];
-    cipher->method    = method;
+    cipher->nonce_len = supported_aead_ciphers_nonce_size[method]; // 设置iv长度
+    cipher->tag_len   = supported_aead_ciphers_tag_size[method]; // 设置标签长度
+    cipher->method    = method; // 设置方法
 
     return cipher;
 }
 
+// 初始化
+// 密码：密码
+// 密钥：密钥
+// 方法：加密算法
 cipher_t *
 aead_init(const char *pass, const char *key, const char *method)
 {
@@ -767,10 +780,10 @@ aead_init(const char *pass, const char *key, const char *method)
             if (strcmp(method, supported_aead_ciphers[m]) == 0) {
                 break;
             }
-        if (m >= AEAD_CIPHER_NUM) {
-            LOGE("Invalid cipher name: %s, use chacha20-ietf-poly1305 instead", method);
-            m = CHACHA20POLY1305IETF;
+        if (m >= AEAD_CIPHER_NUM) { // 如果方法不合法
+            LOGE("Invalid cipher name: %s, use chacha20-ietf-poly1305 instead", method); // 输出错误
+            m = CHACHA20POLY1305IETF; // 设置方法
         }
     }
-    return aead_key_init(m, pass, key);
+    return aead_key_init(m, pass, key); // 初始化密钥
 }

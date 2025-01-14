@@ -163,38 +163,40 @@ setnonblocking(int fd)
 
 #endif
 
+// 创建并绑定
 int
 create_and_bind(const char *addr, const char *port)
 {
-    struct addrinfo hints;
-    struct addrinfo *result, *rp;
-    int s, listen_sock = -1;
+    struct addrinfo hints; // 地址信息
+    struct addrinfo *result, *rp; // 结果，结果指针
+    int s, listen_sock = -1; // 状态，监听套接字
 
-    memset(&hints, 0, sizeof(struct addrinfo));
+    memset(&hints, 0, sizeof(struct addrinfo)); // 清空地址信息
     hints.ai_family   = AF_UNSPEC;   /* Return IPv4 and IPv6 choices */
     hints.ai_socktype = SOCK_STREAM; /* We want a TCP socket */
-    result            = NULL;
+    result            = NULL; // 结果为空
 
-    s = getaddrinfo(addr, port, &hints, &result);
+    s = getaddrinfo(addr, port, &hints, &result); // 获取地址信息
 
     if (s != 0) {
         LOGI("getaddrinfo: %s", gai_strerror(s));
         return -1;
     }
 
+    // 如果结果为空，则返回错误
     if (result == NULL) {
         LOGE("Could not bind");
         return -1;
     }
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
-        listen_sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        listen_sock = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol); // 创建套接字
         if (listen_sock == -1) {
             continue;
         }
 
-        int opt = 1;
-        setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+        int opt = 1; // 选项
+        setsockopt(listen_sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); // 设置套接字选项
 #ifdef SO_NOSIGPIPE
         setsockopt(listen_sock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt));
 #endif
@@ -327,6 +329,10 @@ server_handshake_reply(EV_P_ ev_io *w, int udp_assc, struct socks5_response *res
     }
     return 0;
 }
+
+// 服务器握手
+// 参数：w: 事件循环，buf: 缓冲区
+// 返回值：0: 成功，-1: 失败
 
 static int
 server_handshake(EV_P_ ev_io *w, buffer_t *buf)
@@ -565,18 +571,19 @@ not_bypass:
         remote->buf->len = buf->len;
     }
 
-    server->remote = remote;
-    remote->server = server;
+    server->remote = remote; // 将remote设置为server的远程连接
+    remote->server = server; // 将server设置为remote的服务器
 
     if (buf->len > 0) {
         return 0;
     } else {
-        ev_timer_start(EV_A_ & server->delayed_connect_watcher);
+        ev_timer_start(EV_A_ & server->delayed_connect_watcher); // 开始延迟连接计时器
     }
 
     return -1;
 }
 
+// local 只负责转发数据，所以接收到数据之后会对stream流进行加密，然后发送给 server 进行处理
 static void
 server_stream(EV_P_ ev_io *w, buffer_t *buf)
 {
@@ -590,12 +597,12 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
         return;
     }
 
-    // insert shadowsocks header
-    if (!remote->direct) {
-#ifdef __ANDROID__
+    // 插入shadowsocks头
+    if (!remote->direct) { // 如果远程连接不是直接连接
+#ifdef __ANDROID__ 
         tx += remote->buf->len;
 #endif
-        int err = crypto->encrypt(remote->buf, server->e_ctx, SOCKET_BUF_SIZE);
+        int err = crypto->encrypt(remote->buf, server->e_ctx, SOCKET_BUF_SIZE); // 加密数据
 
         if (err) {
             LOGE("invalid password or cipher");
@@ -604,15 +611,15 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
             return;
         }
 
-        if (server->abuf) {
-            bprepend(remote->buf, server->abuf, SOCKET_BUF_SIZE);
-            bfree(server->abuf);
-            ss_free(server->abuf);
-            server->abuf = NULL;
+        if (server->abuf) { // 如果server->abuf不为空
+            bprepend(remote->buf, server->abuf, SOCKET_BUF_SIZE); // 将server->abuf数据添加到remote->buf中
+            bfree(server->abuf); // 释放server->abuf
+            ss_free(server->abuf); // 释放server->abuf
+            server->abuf = NULL; // 将server->abuf设置为NULL
         }
     }
 
-    if (!remote->send_ctx->connected) {
+    if (!remote->send_ctx->connected) { // 如果远程连接未连接
 #ifdef __ANDROID__
         if (vpn) {
             int not_protect = 0;
@@ -632,23 +639,23 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
         }
 #endif
 
-        remote->buf->idx = 0;
+        remote->buf->idx = 0; // 将remote->buf的索引设置为0
 
-        if (!fast_open || remote->direct) {
+        if (!fast_open || remote->direct) { // 如果快速打开未启用或远程连接是直接连接
             // connecting, wait until connected
-            int r = connect(remote->fd, (struct sockaddr *)&(remote->addr), remote->addr_len);
+            int r = connect(remote->fd, (struct sockaddr *)&(remote->addr), remote->addr_len); // 连接远程连接
 
-            if (r == -1 && errno != CONNECT_IN_PROGRESS) {
-                ERROR("connect");
-                close_and_free_remote(EV_A_ remote);
-                close_and_free_server(EV_A_ server);
-                return;
+            if (r == -1 && errno != CONNECT_IN_PROGRESS) { // 如果连接失败且错误码不是CONNECT_IN_PROGRESS   
+                ERROR("connect"); // 记录错误
+                close_and_free_remote(EV_A_ remote); // 关闭远程连接
+                close_and_free_server(EV_A_ server); // 关闭服务器
+                return; // 返回
             }
 
-            // wait on remote connected event
-            ev_io_stop(EV_A_ & server_recv_ctx->io);
-            ev_io_start(EV_A_ & remote->send_ctx->io);
-            ev_timer_start(EV_A_ & remote->send_ctx->watcher);
+            // 等待远程连接事件
+            ev_io_stop(EV_A_ & server_recv_ctx->io); // 停止server_recv_ctx->io
+            ev_io_start(EV_A_ & remote->send_ctx->io); // 开始remote->send_ctx->io
+            ev_timer_start(EV_A_ & remote->send_ctx->watcher); // 开始remote->send_ctx->watcher
         } else {
 #if defined(MSG_FASTOPEN) && !defined(TCP_FASTOPEN_CONNECT)
             int s = -1;
@@ -715,20 +722,20 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
             if (setsockopt(remote->fd, IPPROTO_TCP, TCP_FASTOPEN_CONNECT,
                            (void *)&optval, sizeof(optval)) < 0)
                 FATAL("failed to set TCP_FASTOPEN_CONNECT");
-            s = connect(remote->fd, (struct sockaddr *)&(remote->addr), remote->addr_len);
+            s = connect(remote->fd, (struct sockaddr *)&(remote->addr), remote->addr_len); // 连接远程连接
 #else
             FATAL("fast open is not enabled in this build");
 #endif
             if (s == 0)
-                s = send(remote->fd, remote->buf->data, remote->buf->len, 0);
+                s = send(remote->fd, remote->buf->data, remote->buf->len, 0); // 发送数据
 #endif
             if (s == -1) {
                 if (errno == CONNECT_IN_PROGRESS) {
                     // in progress, wait until connected
-                    remote->buf->idx = 0;
-                    ev_io_stop(EV_A_ & server_recv_ctx->io);
-                    ev_io_start(EV_A_ & remote->send_ctx->io);
-                    return;
+                    remote->buf->idx = 0; // 将remote->buf的索引设置为0
+                    ev_io_stop(EV_A_ & server_recv_ctx->io); // 停止server_recv_ctx->io
+                    ev_io_start(EV_A_ & remote->send_ctx->io); // 开始remote->send_ctx->io
+                    return; // 返回
                 } else {
                     if (errno == EOPNOTSUPP || errno == EPROTONOSUPPORT ||
                         errno == ENOPROTOOPT) {
@@ -743,8 +750,8 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
                     return;
                 }
             } else {
-                remote->buf->len -= s;
-                remote->buf->idx  = s;
+                remote->buf->len -= s; // 将remote->buf的长度减去s
+                remote->buf->idx  = s; // 将remote->buf的索引设置为s
 
                 ev_io_stop(EV_A_ & server_recv_ctx->io);
                 ev_io_start(EV_A_ & remote->send_ctx->io);
@@ -753,7 +760,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
             }
         }
     } else {
-        int s = send(remote->fd, remote->buf->data, remote->buf->len, 0);
+        int s = send(remote->fd, remote->buf->data, remote->buf->len, 0); // 发送数据
         if (s == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 // no data, wait for send
@@ -767,12 +774,12 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
                 close_and_free_server(EV_A_ server);
                 return;
             }
-        } else if (s < (int)(remote->buf->len)) {
-            remote->buf->len -= s;
-            remote->buf->idx  = s;
-            ev_io_stop(EV_A_ & server_recv_ctx->io);
-            ev_io_start(EV_A_ & remote->send_ctx->io);
-            return;
+        } else if (s < (int)(remote->buf->len)) { // 如果发送的数据小于remote->buf的长度    
+            remote->buf->len -= s; // 将remote->buf的长度减去s
+            remote->buf->idx  = s; // 将remote->buf的索引设置为s
+            ev_io_stop(EV_A_ & server_recv_ctx->io); // 停止server_recv_ctx->io
+            ev_io_start(EV_A_ & remote->send_ctx->io); // 开始remote->send_ctx->io
+            return; // 返回
         } else {
             remote->buf->idx = 0;
             remote->buf->len = 0;
@@ -780,7 +787,7 @@ server_stream(EV_P_ ev_io *w, buffer_t *buf)
     }
 }
 
-// 接收回调函数
+// 接收来自socket5客户端的连接
 static void
 server_recv_cb(EV_P_ ev_io *w, int revents)
 {
@@ -790,7 +797,7 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     buffer_t *buf;
     ssize_t r;
 
-    ev_timer_stop(EV_A_ & server->delayed_connect_watcher);
+    ev_timer_stop(EV_A_ & server->delayed_connect_watcher); // 停止延迟连接计时器
 
     if (remote == NULL) {
         buf = server->buf;
@@ -798,8 +805,8 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
         buf = remote->buf;
     }
 
-    if (revents != EV_TIMER) {
-        r = recv(server->fd, buf->data + buf->len, SOCKET_BUF_SIZE - buf->len, 0);
+    if (revents != EV_TIMER) { // 如果事件不是计时器事件
+        r = recv(server->fd, buf->data + buf->len, SOCKET_BUF_SIZE - buf->len, 0); // 接收数据
 
         if (r == 0) {
             // connection closed
@@ -823,66 +830,66 @@ server_recv_cb(EV_P_ ev_io *w, int revents)
     }
 
     while (1) {
-        // local socks5 server
-        if (server->stage == STAGE_STREAM) {
-            server_stream(EV_A_ w, buf);
+        // 本地socks5服务器
+        if (server->stage == STAGE_STREAM) { // 如果服务器处于流阶段
+            server_stream(EV_A_ w, buf); // 处理流数据
 
-            // all processed
+            // 所有数据处理完毕
             return;
-        } else if (server->stage == STAGE_INIT) {
-            if (verbose) {
-                struct sockaddr_in peer_addr;
-                socklen_t peer_addr_len = sizeof peer_addr;
+        } else if (server->stage == STAGE_INIT) { // 如果服务器处于初始阶段
+            if (verbose) { // 如果verbose为真
+                struct sockaddr_in peer_addr; // 客户端地址
+                socklen_t peer_addr_len = sizeof peer_addr; // 客户端地址长度
                 if (getpeername(server->fd, (struct sockaddr *)&peer_addr, &peer_addr_len) == 0) {
                     LOGI("connection from %s:%hu", inet_ntoa(peer_addr.sin_addr), ntohs(peer_addr.sin_port));
                 }
             }
-            if (buf->len < 1)
-                return;
-            if (buf->data[0] != SVERSION) {
-                close_and_free_remote(EV_A_ remote);
-                close_and_free_server(EV_A_ server);
-                return;
+            if (buf->len < 1) // 如果数据长度小于1
+                return; // 返回
+            if (buf->data[0] != SVERSION) { // 如果数据第一个字节不是SVERSION
+                close_and_free_remote(EV_A_ remote); // 关闭远程连接
+                close_and_free_server(EV_A_ server); // 关闭服务器
+                return; // 返回
             }
-            if (buf->len < sizeof(struct method_select_request)) {
-                return;
+            if (buf->len < sizeof(struct method_select_request)) { // 如果数据长度小于method_select_request结构体大小
+                return; // 返回
             }
-            struct method_select_request *method = (struct method_select_request *)buf->data;
-            int method_len                       = method->nmethods + sizeof(struct method_select_request);
+            struct method_select_request *method = (struct method_select_request *)buf->data; // 获取method_select_request结构体
+            int method_len                       = method->nmethods + sizeof(struct method_select_request); // 获取method_select_request结构体长度
             if (buf->len < method_len) {
                 return;
             }
 
             struct method_select_response response;
-            response.ver    = SVERSION;
-            response.method = METHOD_UNACCEPTABLE;
+            response.ver    = SVERSION; // 设置版本
+            response.method = METHOD_UNACCEPTABLE; // 设置方法
             for (int i = 0; i < method->nmethods; i++)
-                if (method->methods[i] == METHOD_NOAUTH) {
-                    response.method = METHOD_NOAUTH;
-                    break;
+                if (method->methods[i] == METHOD_NOAUTH) { // 如果方法为METHOD_NOAUTH
+                    response.method = METHOD_NOAUTH; // 设置方法为METHOD_NOAUTH
+                    break; // 跳出循环
                 }
-            char *send_buf = (char *)&response;
-            send(server->fd, send_buf, sizeof(response), 0);
-            if (response.method == METHOD_UNACCEPTABLE) {
-                close_and_free_remote(EV_A_ remote);
-                close_and_free_server(EV_A_ server);
-                return;
+            char *send_buf = (char *)&response; // 将response转换为char*
+            send(server->fd, send_buf, sizeof(response), 0); // 发送数据
+            if (response.method == METHOD_UNACCEPTABLE) { // 如果方法为METHOD_UNACCEPTABLE
+                close_and_free_remote(EV_A_ remote); // 关闭远程连接
+                close_and_free_server(EV_A_ server); // 关闭服务器
+                return; // 返回
             }
 
-            server->stage = STAGE_HANDSHAKE;
+            server->stage = STAGE_HANDSHAKE; // 设置服务器阶段为握手阶段
 
-            if (method_len < (int)(buf->len)) {
-                memmove(buf->data, buf->data + method_len, buf->len - method_len);
-                buf->len -= method_len;
-                continue;
+            if (method_len < (int)(buf->len)) { // 如果method_len小于buf的长度
+                memmove(buf->data, buf->data + method_len, buf->len - method_len); // 将buf的数据移动到buf->data + method_len
+                buf->len -= method_len; // 将buf的长度减去method_len
+                continue; // 继续循环
             }
 
             buf->len = 0;
             return;
-        } else if (server->stage == STAGE_HANDSHAKE) {
-            int ret = server_handshake(EV_A_ w, buf);
+        } else if (server->stage == STAGE_HANDSHAKE) { // 如果服务器处于握手阶段
+            int ret = server_handshake(EV_A_ w, buf); // 处理握手
             if (ret)
-                return;
+                return; // 返回
         }
     }
 }
@@ -955,6 +962,7 @@ remote_timeout_cb(EV_P_ ev_timer *watcher, int revents)
     close_and_free_server(EV_A_ server);
 }
 
+// 接收来自远程连接的数据
 static void
 remote_recv_cb(EV_P_ ev_io *w, int revents)
 {
@@ -1179,6 +1187,7 @@ close_and_free_remote(EV_P_ remote_t *remote)
     }
 }
 
+// 创建server
 static server_t *
 new_server(int fd)
 {
@@ -1207,8 +1216,8 @@ new_server(int fd)
     crypto->ctx_init(crypto->cipher, server->e_ctx, 1);
     crypto->ctx_init(crypto->cipher, server->d_ctx, 0);
 
-    ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ);
-    ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE);
+    ev_io_init(&server->recv_ctx->io, server_recv_cb, fd, EV_READ); // 初始化接收回调
+    ev_io_init(&server->send_ctx->io, server_send_cb, fd, EV_WRITE); // 初始化发送回调
 
     ev_timer_init(&server->delayed_connect_watcher,
                   delayed_connect_cb, 0.05, 0);
@@ -1339,6 +1348,7 @@ create_remote(listen_ctx_t *listener,
     return remote;
 }
 
+// 信号处理
 static void
 signal_cb(EV_P_ ev_signal *w, int revents)
 {
@@ -1391,16 +1401,17 @@ plugin_watcher_cb(EV_P_ ev_io *w, int revents)
 
 #endif
 
+// 接收到来自客户端的连接，这里的客户端是指本地监听的客户端
 void
 accept_cb(EV_P_ ev_io *w, int revents)
 {
-    listen_ctx_t *listener = (listen_ctx_t *)w;
-    int serverfd           = accept(listener->fd, NULL, NULL);
+    listen_ctx_t *listener = (listen_ctx_t *)w; // 获取监听上下文
+    int serverfd           = accept(listener->fd, NULL, NULL); // 接受连接
     if (serverfd == -1) {
         ERROR("accept");
         return;
     }
-    setnonblocking(serverfd);
+    setnonblocking(serverfd); // 设置套接字为非阻塞
     int opt = 1;
     setsockopt(serverfd, SOL_TCP, TCP_NODELAY, &opt, sizeof(opt));
 #ifdef SO_NOSIGPIPE
@@ -1415,10 +1426,10 @@ accept_cb(EV_P_ ev_io *w, int revents)
         setsockopt(serverfd, SOL_SOCKET, SO_RCVBUF, &tcp_incoming_rcvbuf, sizeof(int));
     }
 
-    server_t *server = new_server(serverfd);
-    server->listener = listener;
+    server_t *server = new_server(serverfd);  // 根据该fd创建一个server
+    server->listener = listener; // 设置监听上下文
 
-    ev_io_start(EV_A_ & server->recv_ctx->io);
+    ev_io_start(EV_A_ & server->recv_ctx->io); // 开始接收数据
 }
 
 #ifndef LIB_ONLY
@@ -1923,7 +1934,7 @@ main(int argc, char **argv)
     listen_ctx.iface   = iface;
     listen_ctx.mptcp   = mptcp;
 
-    // Setup signal handler
+    // 设置信号处理
     ev_signal_init(&sigint_watcher, signal_cb, SIGINT);
     ev_signal_init(&sigterm_watcher, signal_cb, SIGTERM);
     ev_signal_start(EV_DEFAULT, &sigint_watcher);
@@ -1997,7 +2008,7 @@ main(int argc, char **argv)
     // Init connections
     cork_dllist_init(&connections);
 
-    // Enter the loop
+    // 进入循环
     ev_run(loop, 0);
 
     if (verbose) {

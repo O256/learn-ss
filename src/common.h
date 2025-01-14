@@ -48,34 +48,34 @@ int protect_socket(int fd);
 int send_traffic_stat(uint64_t tx, uint64_t rx);
 #endif
 
-#define STAGE_ERROR     -1  /* Error detected                   */
-#define STAGE_INIT       0  /* Initial stage                    */
-#define STAGE_HANDSHAKE  1  /* Handshake with client            */
-#define STAGE_RESOLVE    4  /* Resolve the hostname             */
-#define STAGE_STREAM     5  /* Stream between client and server */
-#define STAGE_STOP       6  /* Server stop to response          */
+#define STAGE_ERROR     -1  /* 错误检测 */
+#define STAGE_INIT       0  /* 初始阶段 */
+#define STAGE_HANDSHAKE  1  /* 与客户端握手 */
+#define STAGE_RESOLVE    4  /* 解析主机名 */
+#define STAGE_STREAM     5  /* 流阶段，数据在客户端和服务器之间传输 */
+#define STAGE_STOP       6  /* 服务器停止响应 */
 
 /* Vals for long options */
 enum {
-    GETOPT_VAL_HELP = 257,
-    GETOPT_VAL_REUSE_PORT,
-    GETOPT_VAL_FAST_OPEN,
-    GETOPT_VAL_NODELAY,
-    GETOPT_VAL_ACL,
-    GETOPT_VAL_MTU,
-    GETOPT_VAL_MPTCP,
-    GETOPT_VAL_PLUGIN,
-    GETOPT_VAL_PLUGIN_OPTS,
-    GETOPT_VAL_PASSWORD,
-    GETOPT_VAL_KEY,
-    GETOPT_VAL_MANAGER_ADDRESS,
-    GETOPT_VAL_EXECUTABLE,
-    GETOPT_VAL_WORKDIR,
-    GETOPT_VAL_TCP_INCOMING_SNDBUF,
-    GETOPT_VAL_TCP_INCOMING_RCVBUF,
-    GETOPT_VAL_TCP_OUTGOING_SNDBUF,
-    GETOPT_VAL_TCP_OUTGOING_RCVBUF,
-    GETOPT_VAL_NFTABLES_SETS
+    GETOPT_VAL_HELP = 257, // 帮助
+    GETOPT_VAL_REUSE_PORT, // 重用端口
+    GETOPT_VAL_FAST_OPEN, // 快速打开
+    GETOPT_VAL_NODELAY, // 不延迟
+    GETOPT_VAL_ACL, // 访问控制列表
+    GETOPT_VAL_MTU, // 最大传输单元
+    GETOPT_VAL_MPTCP, // 多路径传输控制协议
+    GETOPT_VAL_PLUGIN, // 插件
+    GETOPT_VAL_PLUGIN_OPTS, // 插件选项
+    GETOPT_VAL_PASSWORD, // 密码
+    GETOPT_VAL_KEY, // 密钥
+    GETOPT_VAL_MANAGER_ADDRESS, // 管理地址
+    GETOPT_VAL_EXECUTABLE, // 可执行文件
+    GETOPT_VAL_WORKDIR, // 工作目录
+    GETOPT_VAL_TCP_INCOMING_SNDBUF, // 输入缓冲区大小
+    GETOPT_VAL_TCP_INCOMING_RCVBUF, // 输入接收缓冲区大小
+    GETOPT_VAL_TCP_OUTGOING_SNDBUF, // 输出发送缓冲区大小
+    GETOPT_VAL_TCP_OUTGOING_RCVBUF, // 输出接收缓冲区大小
+    GETOPT_VAL_NFTABLES_SETS, // nftables sets
 };
 
 #endif // _COMMON_H

@@ -26,15 +26,15 @@
 #define BLACK_LIST 0
 #define WHITE_LIST 1
 
-int init_acl(const char *path);
-void free_acl(void);
+int init_acl(const char *path); // 初始化ACL
+void free_acl(void); // 释放ACL
 
-int acl_match_host(const char *ip);
-int acl_add_ip(const char *ip);
-int acl_remove_ip(const char *ip);
+int acl_match_host(const char *ip); // 匹配主机
+int acl_add_ip(const char *ip); // 添加IP
+int acl_remove_ip(const char *ip); // 删除IP
 
-int get_acl_mode(void);
+int get_acl_mode(void); // 获取ACL模式
 
-int outbound_block_match_host(const char *host);
+int outbound_block_match_host(const char *host); // 匹配主机
 
 #endif // _ACL_H
