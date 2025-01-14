@@ -538,7 +538,7 @@ create_server_socket(const char *host, const char *port)
         }
 #endif
 
-        s = bind(server_sock, rp->ai_addr, rp->ai_addrlen);
+        s = bind(server_sock, rp->ai_addr, rp->ai_addrlen); // 绑定服务器
         if (s == 0) {
             /* We managed to bind successfully! */
             break;
